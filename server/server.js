@@ -5,6 +5,7 @@ const connectDB = require('./config/db');
 const { errorHandler, notFound } = require('./middlewares/errorMiddleware');
 const healthRoutes = require('./routes/healthRoutes');
 const authRoutes = require('./routes/authRoutes');
+const repoRoutes = require('./routes/repoRoutes');
 
 // Load environment variables
 dotenv.config();
@@ -21,6 +22,7 @@ app.use(express.json()); // Allows us to accept JSON data in the body
 // API Routes
 app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/repos', repoRoutes);
 
 // Error Handling Middlewares
 app.use(notFound);
