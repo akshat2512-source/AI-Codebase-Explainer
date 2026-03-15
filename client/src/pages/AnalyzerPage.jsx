@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { analyzeRepository } from '../services/repoService';
+import { analyzeRepository, fetchRepoTree } from '../services/repoService';
+import FileTree from '../components/FileTree';
 import {
   Loader,
   Star,
@@ -16,6 +17,7 @@ import {
   Scale,
   GitBranch,
   HardDrive,
+  FolderTree,
 } from 'lucide-react';
 
 const AnalyzerPage = () => {
@@ -25,8 +27,11 @@ const AnalyzerPage = () => {
 
   const [repoUrl, setRepoUrl] = useState(urlFromQuery);
   const [repoData, setRepoData] = useState(null);
+  const [treeData, setTreeData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [treeLoading, setTreeLoading] = useState(false);
   const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'files'
 
   // Auto-analyze if URL is provided via query param
   useEffect(() => {
@@ -42,11 +47,18 @@ const AnalyzerPage = () => {
 
     setError('');
     setRepoData(null);
+    setTreeData(null);
     setLoading(true);
+    setActiveTab('overview');
 
     try {
-      const data = await analyzeRepository(repoUrl.trim());
-      setRepoData(data);
+      // Fetch metadata and tree in parallel
+      const [metadata, tree] = await Promise.all([
+        analyzeRepository(repoUrl.trim()),
+        fetchRepoTree(repoUrl.trim()).catch(() => null), // Don't fail if tree fails
+      ]);
+      setRepoData(metadata);
+      setTreeData(tree);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to analyze repository. Please try again.');
     } finally {
@@ -54,13 +66,11 @@ const AnalyzerPage = () => {
     }
   };
 
-  // Format large numbers (e.g. 220000 → 220k)
   const formatNumber = (num) => {
     if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
     return num?.toString() || '0';
   };
 
-  // Format KB size to human-readable
   const formatSize = (kb) => {
     if (!kb) return 'N/A';
     if (kb >= 1024 * 1024) return (kb / (1024 * 1024)).toFixed(1) + ' GB';
@@ -73,7 +83,7 @@ const AnalyzerPage = () => {
       {/* Search Section */}
       <div className="mb-10">
         <h2 className="text-3xl font-bold text-white tracking-tight mb-2">Repository Analyzer</h2>
-        <p className="text-slate-400 mb-6">Paste a GitHub repository URL to fetch its metadata and details.</p>
+        <p className="text-slate-400 mb-6">Paste a GitHub repository URL to fetch its metadata and file structure.</p>
 
         <form onSubmit={handleAnalyze} className="relative group max-w-2xl">
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -118,7 +128,7 @@ const AnalyzerPage = () => {
 
       {/* Results */}
       {repoData && !loading && (
-        <div className="space-y-6 animate-in fade-in">
+        <div className="space-y-6">
           {/* Repo Header Card */}
           <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6">
             <div className="flex items-start gap-4">
@@ -151,43 +161,91 @@ const AnalyzerPage = () => {
             </div>
           </div>
 
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              { icon: <Star size={20} />, label: 'Stars', value: formatNumber(repoData.stars), color: 'text-amber-400' },
-              { icon: <GitFork size={20} />, label: 'Forks', value: formatNumber(repoData.forks), color: 'text-blue-400' },
-              { icon: <Eye size={20} />, label: 'Watchers', value: formatNumber(repoData.watchers), color: 'text-purple-400' },
-              { icon: <AlertCircle size={20} />, label: 'Open Issues', value: formatNumber(repoData.openIssues), color: 'text-orange-400' },
-            ].map((stat, i) => (
-              <div key={i} className="bg-slate-800 border border-slate-700 rounded-xl p-4 text-center">
-                <div className={`${stat.color} flex justify-center mb-2`}>{stat.icon}</div>
-                <p className="text-2xl font-bold text-white">{stat.value}</p>
-                <p className="text-xs text-slate-400 mt-1">{stat.label}</p>
-              </div>
-            ))}
+          {/* Tabs */}
+          <div className="flex gap-1 bg-slate-800/50 border border-slate-700 rounded-xl p-1">
+            <button
+              onClick={() => setActiveTab('overview')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'overview'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+              }`}
+            >
+              <Code size={16} /> Repository Overview
+            </button>
+            <button
+              onClick={() => setActiveTab('files')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'files'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+              }`}
+            >
+              <FolderTree size={16} /> File Structure
+              {treeData && (
+                <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-slate-600 rounded-full">
+                  {treeData.totalFiles}
+                </span>
+              )}
+            </button>
           </div>
 
-          {/* Metadata Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <MetadataCard icon={<Code size={18} />} label="Primary Language" value={repoData.language || 'N/A'} color="text-emerald-400" />
-            <MetadataCard icon={<GitBranch size={18} />} label="Default Branch" value={repoData.defaultBranch} color="text-cyan-400" />
-            <MetadataCard icon={<HardDrive size={18} />} label="Repository Size" value={formatSize(repoData.size)} color="text-indigo-400" />
-            <MetadataCard icon={<Scale size={18} />} label="License" value={repoData.license || 'None'} color="text-pink-400" />
-            <MetadataCard icon={<Calendar size={18} />} label="Created" value={new Date(repoData.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} color="text-teal-400" />
-            <MetadataCard icon={<Calendar size={18} />} label="Last Updated" value={new Date(repoData.updatedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} color="text-slate-400" />
-          </div>
-
-          {/* Topics */}
-          {repoData.topics?.length > 0 && (
-            <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
-              <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2"><Tag size={15} /> Topics</h4>
-              <div className="flex flex-wrap gap-2">
-                {repoData.topics.map((topic) => (
-                  <span key={topic} className="px-3 py-1 bg-blue-500/10 text-blue-300 text-xs rounded-full border border-blue-500/20">
-                    {topic}
-                  </span>
+          {/* Tab Content: Overview */}
+          {activeTab === 'overview' && (
+            <div className="space-y-6">
+              {/* Stats Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[
+                  { icon: <Star size={20} />, label: 'Stars', value: formatNumber(repoData.stars), color: 'text-amber-400' },
+                  { icon: <GitFork size={20} />, label: 'Forks', value: formatNumber(repoData.forks), color: 'text-blue-400' },
+                  { icon: <Eye size={20} />, label: 'Watchers', value: formatNumber(repoData.watchers), color: 'text-purple-400' },
+                  { icon: <AlertCircle size={20} />, label: 'Open Issues', value: formatNumber(repoData.openIssues), color: 'text-orange-400' },
+                ].map((stat, i) => (
+                  <div key={i} className="bg-slate-800 border border-slate-700 rounded-xl p-4 text-center">
+                    <div className={`${stat.color} flex justify-center mb-2`}>{stat.icon}</div>
+                    <p className="text-2xl font-bold text-white">{stat.value}</p>
+                    <p className="text-xs text-slate-400 mt-1">{stat.label}</p>
+                  </div>
                 ))}
               </div>
+
+              {/* Metadata Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <MetadataCard icon={<Code size={18} />} label="Primary Language" value={repoData.language || 'N/A'} color="text-emerald-400" />
+                <MetadataCard icon={<GitBranch size={18} />} label="Default Branch" value={repoData.defaultBranch} color="text-cyan-400" />
+                <MetadataCard icon={<HardDrive size={18} />} label="Repository Size" value={formatSize(repoData.size)} color="text-indigo-400" />
+                <MetadataCard icon={<Scale size={18} />} label="License" value={repoData.license || 'None'} color="text-pink-400" />
+                <MetadataCard icon={<Calendar size={18} />} label="Created" value={new Date(repoData.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} color="text-teal-400" />
+                <MetadataCard icon={<Calendar size={18} />} label="Last Updated" value={new Date(repoData.updatedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} color="text-slate-400" />
+              </div>
+
+              {/* Topics */}
+              {repoData.topics?.length > 0 && (
+                <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
+                  <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2"><Tag size={15} /> Topics</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {repoData.topics.map((topic) => (
+                      <span key={topic} className="px-3 py-1 bg-blue-500/10 text-blue-300 text-xs rounded-full border border-blue-500/20">
+                        {topic}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Tab Content: File Structure */}
+          {activeTab === 'files' && (
+            <div>
+              {treeData ? (
+                <FileTree treeData={treeData} />
+              ) : (
+                <div className="bg-slate-800 border border-slate-700 rounded-2xl p-10 text-center">
+                  <FolderTree size={40} className="text-slate-500 mx-auto mb-3" />
+                  <p className="text-slate-400">File tree data is not available for this repository.</p>
+                </div>
+              )}
             </div>
           )}
         </div>
