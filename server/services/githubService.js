@@ -144,5 +144,43 @@ const fetchRepoTree = async (owner, repo) => {
   };
 };
 
-module.exports = { parseGitHubUrl, fetchRepoMetadata, fetchRepoTree };
+/**
+ * Fetches the language breakdown for a repository.
+ * Returns an object like { JavaScript: 80000, TypeScript: 12000 }.
+ */
+const fetchRepoLanguages = async (owner, repo) => {
+  const apiUrl = `https://api.github.com/repos/${owner}/${repo}/languages`;
+  const response = await fetch(apiUrl, { headers: getGitHubHeaders() });
+  handleGitHubError(response);
+  return response.json();
+};
 
+/**
+ * Fetches the raw content of a single file from a repository.
+ * Returns the parsed JSON if the file is JSON, otherwise the raw string.
+ * Returns null if the file is not found (404).
+ */
+const fetchFileContent = async (owner, repo, path) => {
+  const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+  const response = await fetch(apiUrl, { headers: getGitHubHeaders() });
+
+  if (response.status === 404) return null;
+  handleGitHubError(response);
+
+  const data = await response.json();
+  const content = Buffer.from(data.content, 'base64').toString('utf-8');
+
+  try {
+    return JSON.parse(content);
+  } catch {
+    return content;
+  }
+};
+
+module.exports = {
+  parseGitHubUrl,
+  fetchRepoMetadata,
+  fetchRepoTree,
+  fetchRepoLanguages,
+  fetchFileContent,
+};

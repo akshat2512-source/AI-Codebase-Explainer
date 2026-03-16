@@ -21,3 +21,13 @@ export const fetchRepoTree = async (repoUrl) => {
   const response = await axios.post(`${API_URL}/tree`, { repoUrl });
   return response.data;
 };
+
+/**
+ * Detects the tech stack of a GitHub repository.
+ * @param {string} repoUrl - Full GitHub repository URL
+ * @returns {Promise<Object>} Detected tech stack
+ */
+export const fetchTechStack = async (repoUrl) => {
+  const response = await axios.post(`${API_URL}/tech-stack`, { repoUrl });
+  return response.data;
+};

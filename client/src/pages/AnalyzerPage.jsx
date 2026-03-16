@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { analyzeRepository, fetchRepoTree } from '../services/repoService';
+import { analyzeRepository, fetchRepoTree, fetchTechStack } from '../services/repoService';
 import FileTree from '../components/FileTree';
+import TechStackCard from '../components/TechStackCard';
 import {
   Loader,
   Star,
@@ -18,6 +19,7 @@ import {
   GitBranch,
   HardDrive,
   FolderTree,
+  Cpu,
 } from 'lucide-react';
 
 const AnalyzerPage = () => {
@@ -28,10 +30,11 @@ const AnalyzerPage = () => {
   const [repoUrl, setRepoUrl] = useState(urlFromQuery);
   const [repoData, setRepoData] = useState(null);
   const [treeData, setTreeData] = useState(null);
+  const [techStackData, setTechStackData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [treeLoading, setTreeLoading] = useState(false);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'files'
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'files' | 'techStack'
 
   // Auto-analyze if URL is provided via query param
   useEffect(() => {
@@ -48,17 +51,20 @@ const AnalyzerPage = () => {
     setError('');
     setRepoData(null);
     setTreeData(null);
+    setTechStackData(null);
     setLoading(true);
     setActiveTab('overview');
 
     try {
-      // Fetch metadata and tree in parallel
-      const [metadata, tree] = await Promise.all([
+      // Fetch metadata, tree, and tech stack in parallel
+      const [metadata, tree, techStack] = await Promise.all([
         analyzeRepository(repoUrl.trim()),
-        fetchRepoTree(repoUrl.trim()).catch(() => null), // Don't fail if tree fails
+        fetchRepoTree(repoUrl.trim()).catch(() => null),
+        fetchTechStack(repoUrl.trim()).catch(() => null),
       ]);
       setRepoData(metadata);
       setTreeData(tree);
+      setTechStackData(techStack);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to analyze repository. Please try again.');
     } finally {
@@ -188,6 +194,16 @@ const AnalyzerPage = () => {
                 </span>
               )}
             </button>
+            <button
+              onClick={() => setActiveTab('techStack')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'techStack'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+              }`}
+            >
+              <Cpu size={16} /> Tech Stack
+            </button>
           </div>
 
           {/* Tab Content: Overview */}
@@ -244,6 +260,20 @@ const AnalyzerPage = () => {
                 <div className="bg-slate-800 border border-slate-700 rounded-2xl p-10 text-center">
                   <FolderTree size={40} className="text-slate-500 mx-auto mb-3" />
                   <p className="text-slate-400">File tree data is not available for this repository.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Tab Content: Tech Stack */}
+          {activeTab === 'techStack' && (
+            <div>
+              {techStackData ? (
+                <TechStackCard techStack={techStackData} />
+              ) : (
+                <div className="bg-slate-800 border border-slate-700 rounded-2xl p-10 text-center">
+                  <Cpu size={40} className="text-slate-500 mx-auto mb-3" />
+                  <p className="text-slate-400">Tech stack data is not available for this repository.</p>
                 </div>
               )}
             </div>
