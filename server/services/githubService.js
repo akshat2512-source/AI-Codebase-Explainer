@@ -90,14 +90,20 @@ const fetchRepoMetadata = async (owner, repo) => {
   };
 };
 
+const IGNORED_PATHS = [
+  'node_modules',
+  '.git',
+  'dist',
+  'build',
+  'coverage',
+  '.next',
+  '.cache',
+  '.DS_Store',
+];
+
 /**
  * Fetches the full recursive file tree of a repository.
- * Uses the default branch obtained from the repo metadata.
- * Caps the response at FILE_LIMIT entries.
- *
- * @param {string} owner
- * @param {string} repo
- * @returns {Promise<{ tree: Array<{path: string, type: string, size?: number}>, truncated: boolean, totalFiles: number }>}
+ * Filters out common noise directories and caps at FILE_LIMIT entries.
  */
 const fetchRepoTree = async (owner, repo) => {
   // 1. Get the default branch
@@ -117,19 +123,24 @@ const fetchRepoTree = async (owner, repo) => {
     throw new Error('Failed to retrieve repository file tree.');
   }
 
-  // 3. Map and cap results
-  const fullTree = treeData.tree.map((item) => ({
+  // 3. Filter out ignored paths, then map and cap results
+  const filtered = treeData.tree.filter((item) => {
+    const segments = item.path.split('/');
+    return !segments.some((seg) => IGNORED_PATHS.includes(seg));
+  });
+
+  const mapped = filtered.map((item) => ({
     path: item.path,
-    type: item.type === 'blob' ? 'blob' : 'tree', // blob = file, tree = folder
+    type: item.type === 'blob' ? 'blob' : 'tree',
     size: item.size || 0,
   }));
 
-  const limited = fullTree.slice(0, FILE_LIMIT);
+  const limited = mapped.slice(0, FILE_LIMIT);
 
   return {
     tree: limited,
-    truncated: treeData.truncated || fullTree.length > FILE_LIMIT,
-    totalFiles: fullTree.length,
+    truncated: treeData.truncated || mapped.length > FILE_LIMIT,
+    totalFiles: mapped.filter((i) => i.type === 'blob').length,
   };
 };
 

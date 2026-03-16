@@ -143,18 +143,17 @@ const FileTree = ({ treeData }) => {
     <div className="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden">
       <div className="flex items-center justify-between px-5 py-3 border-b border-slate-700 bg-slate-800/80">
         <h3 className="text-base font-semibold text-white flex items-center gap-2">
-          <Folder size={18} className="text-amber-400" /> File Structure
+          <Folder size={18} className="text-amber-400" /> File Explorer
         </h3>
         <span className="text-xs text-slate-400">
-          {treeData.totalFiles} items
-          {treeData.truncated && ' (truncated)'}
+          <span className="font-medium text-slate-300">{treeData.totalFiles}</span> files
         </span>
       </div>
 
       {treeData.truncated && (
         <div className="flex items-center gap-2 px-5 py-2 bg-amber-500/5 border-b border-amber-500/10 text-amber-400 text-xs">
           <AlertTriangle size={14} />
-          <span>Large repository — showing first 2,000 entries</span>
+          <span>Showing first 2,000 files (repository truncated)</span>
         </div>
       )}
 
