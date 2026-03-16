@@ -6,6 +6,8 @@ const { errorHandler, notFound } = require('./middlewares/errorMiddleware');
 const healthRoutes = require('./routes/healthRoutes');
 const authRoutes = require('./routes/authRoutes');
 const repoRoutes = require('./routes/repoRoutes');
+const analysisRoutes = require('./routes/analysisRoutes');
+const chatRoutes = require('./routes/chatRoutes');
 
 // Load environment variables
 dotenv.config();
@@ -17,12 +19,14 @@ const app = express();
 
 // Middleware
 app.use(cors());
-app.use(express.json()); // Allows us to accept JSON data in the body
+app.use(express.json({ limit: '5mb' })); // Increased limit for analysis payload
 
 // API Routes
 app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/repos', repoRoutes);
+app.use('/api/analysis', analysisRoutes);
+app.use('/api/chat', chatRoutes);
 
 // Error Handling Middlewares
 app.use(notFound);

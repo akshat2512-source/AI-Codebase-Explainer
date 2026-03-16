@@ -1,8 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { analyzeRepository, fetchRepoTree, fetchTechStack } from '../services/repoService';
+import { analyzeRepository, fetchRepoTree, fetchTechStack, fetchAIExplanation, fetchArchitectureDiagram, sendChatMessage } from '../services/repoService';
+import { saveAnalysis } from '../services/analysisService';
+import { useAuth } from '../context/AuthContext';
 import FileTree from '../components/FileTree';
 import TechStackCard from '../components/TechStackCard';
+import AIExplanation from '../components/AIExplanation';
+import ArchitectureDiagram from '../components/ArchitectureDiagram';
+import RepoChat from '../components/RepoChat';
 import {
   Loader,
   Star,
@@ -20,10 +25,14 @@ import {
   HardDrive,
   FolderTree,
   Cpu,
+  Sparkles,
+  Network,
+  MessageSquare,
 } from 'lucide-react';
 
 const AnalyzerPage = () => {
   const location = useLocation();
+  const { user } = useAuth();
   const searchParams = new URLSearchParams(location.search);
   const urlFromQuery = searchParams.get('url') || '';
 
@@ -31,10 +40,16 @@ const AnalyzerPage = () => {
   const [repoData, setRepoData] = useState(null);
   const [treeData, setTreeData] = useState(null);
   const [techStackData, setTechStackData] = useState(null);
+  const [aiData, setAiData] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState('');
+  const [diagramData, setDiagramData] = useState(null);
+  const [diagramLoading, setDiagramLoading] = useState(false);
+  const [diagramError, setDiagramError] = useState('');
   const [loading, setLoading] = useState(false);
   const [treeLoading, setTreeLoading] = useState(false);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'files' | 'techStack'
+  const [activeTab, setActiveTab] = useState('overview');
 
   // Auto-analyze if URL is provided via query param
   useEffect(() => {
@@ -52,6 +67,10 @@ const AnalyzerPage = () => {
     setRepoData(null);
     setTreeData(null);
     setTechStackData(null);
+    setAiData(null);
+    setAiError('');
+    setDiagramData(null);
+    setDiagramError('');
     setLoading(true);
     setActiveTab('overview');
 
@@ -70,6 +89,81 @@ const AnalyzerPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  /** Lazy-load AI explanation only when user clicks the tab */
+  const handleGenerateAI = async () => {
+    if (!repoUrl.trim()) return;
+    setAiLoading(true);
+    setAiError('');
+    try {
+      // Pass pre-fetched data to avoid redundant GitHub API calls
+      const cachedMeta = repoData ? { ...repoData, tree: treeData?.tree || [] } : null;
+      const data = await fetchAIExplanation(repoUrl.trim(), cachedMeta, techStackData);
+      setAiData(data);
+
+      // Auto-save analysis if user is logged in
+      if (user && repoData) {
+        const urlObj = repoUrl.trim();
+        const parts = urlObj.replace(/\.git$/, '').split('/');
+        const owner = parts[parts.length - 2] || '';
+        const repoName = parts[parts.length - 1] || '';
+        saveAnalysis({
+          repoUrl: urlObj,
+          repoName,
+          owner,
+          metadata: repoData,
+          techStack: techStackData,
+          aiExplanation: data,
+        }).catch(() => {}); // silent — don't block UI
+      }
+    } catch (err) {
+      setAiError(err.response?.data?.message || 'Failed to generate AI explanation. Please try again.');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  /** Lazy-load architecture diagram */
+  const handleGenerateDiagram = async () => {
+    if (!repoData) return;
+    setDiagramLoading(true);
+    setDiagramError('');
+    try {
+      const folders = (treeData?.tree || [])
+        .filter((f) => f.type === 'tree')
+        .map((f) => f.path)
+        .slice(0, 30);
+      const data = await fetchArchitectureDiagram({
+        repoName: repoData.name || repoData.fullName,
+        techStack: techStackData || {},
+        folders,
+      });
+      setDiagramData(data);
+    } catch (err) {
+      setDiagramError(err.response?.data?.message || 'Failed to generate diagram.');
+    } finally {
+      setDiagramLoading(false);
+    }
+  };
+
+  /** Build repoContext for chat */
+  const buildChatContext = () => {
+    if (!repoData) return null;
+    return {
+      repoName: repoData.fullName || repoData.name,
+      description: repoData.description,
+      languages: techStackData?.languages || [],
+      frameworks: techStackData?.frameworks || [],
+      backend: techStackData?.backend || [],
+      database: techStackData?.database || [],
+      devTools: techStackData?.devTools || [],
+      folders: (treeData?.tree || [])
+        .filter((f) => f.type === 'tree')
+        .map((f) => f.path)
+        .slice(0, 15),
+      aiSummary: aiData?.overview || '',
+    };
   };
 
   const formatNumber = (num) => {
@@ -204,6 +298,36 @@ const AnalyzerPage = () => {
             >
               <Cpu size={16} /> Tech Stack
             </button>
+            <button
+              onClick={() => setActiveTab('aiExplanation')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'aiExplanation'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+              }`}
+            >
+              <Sparkles size={16} /> AI Explanation
+            </button>
+            <button
+              onClick={() => setActiveTab('architecture')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'architecture'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+              }`}
+            >
+              <Network size={16} /> Architecture
+            </button>
+            <button
+              onClick={() => setActiveTab('chat')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'chat'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+              }`}
+            >
+              <MessageSquare size={16} /> Chat
+            </button>
           </div>
 
           {/* Tab Content: Overview */}
@@ -277,6 +401,34 @@ const AnalyzerPage = () => {
                 </div>
               )}
             </div>
+          )}
+
+          {/* Tab Content: AI Explanation */}
+          {activeTab === 'aiExplanation' && (
+            <AIExplanation
+              data={aiData}
+              loading={aiLoading}
+              error={aiError}
+              onGenerate={handleGenerateAI}
+            />
+          )}
+
+          {/* Tab Content: Architecture Diagram */}
+          {activeTab === 'architecture' && (
+            <ArchitectureDiagram
+              data={diagramData}
+              loading={diagramLoading}
+              error={diagramError}
+              onGenerate={handleGenerateDiagram}
+            />
+          )}
+
+          {/* Tab Content: Repository Chat */}
+          {activeTab === 'chat' && (
+            <RepoChat
+              repoContext={buildChatContext()}
+              onSend={sendChatMessage}
+            />
           )}
         </div>
       )}
