@@ -175,7 +175,7 @@ const generateCodebaseExplanation = async (repoData) => {
 
   // ── If no API key, return mock ──
   if (!client) {
-    console.log('[aiService] No OPENAI_API_KEY found — returning mock explanation');
+    if (process.env.NODE_ENV !== 'production') console.log('[aiService] No OPENAI_API_KEY found — returning mock explanation');
     return generateMockExplanation(enriched);
   }
 
@@ -211,7 +211,7 @@ const generateCodebaseExplanation = async (repoData) => {
       };
     }
   } catch (apiError) {
-    console.error('[aiService] OpenAI API error — falling back to mock:', apiError.message);
+    if (process.env.NODE_ENV !== 'production') console.error('[aiService] OpenAI API error — falling back to mock:', apiError.message);
     return generateMockExplanation(enriched);
   }
 };

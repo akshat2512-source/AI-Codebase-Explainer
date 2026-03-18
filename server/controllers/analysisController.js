@@ -1,4 +1,5 @@
 const Analysis = require('../models/Analysis');
+const { nanoid } = require('nanoid');
 
 /**
  * @desc    Save or update a repository analysis (upsert by userId + repoUrl)
@@ -23,9 +24,16 @@ const saveAnalysis = async (req, res) => {
         metadata: metadata || {},
         techStack: techStack || {},
         aiExplanation: aiExplanation || {},
+        $setOnInsert: { shareId: nanoid(12) }, // generate shareId only on first insert
       },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
+
+    // If an older analysis has no shareId (pre-existing), back-fill it
+    if (!analysis.shareId) {
+      analysis.shareId = nanoid(12);
+      await analysis.save();
+    }
 
     res.status(201).json(analysis);
   } catch (error) {

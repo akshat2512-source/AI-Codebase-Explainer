@@ -35,6 +35,11 @@ const analysisSchema = new mongoose.Schema(
       type: Object,
       default: {},
     },
+    shareId: {
+      type: String,
+      unique: true,
+      sparse: true, // allows null — only enforces uniqueness when set
+    },
   },
   {
     timestamps: true, // createdAt + updatedAt
@@ -43,5 +48,6 @@ const analysisSchema = new mongoose.Schema(
 
 // Compound index: one cached analysis per user+repo pair
 analysisSchema.index({ userId: 1, repoUrl: 1 }, { unique: true });
+analysisSchema.index({ shareId: 1 });
 
 module.exports = mongoose.model('Analysis', analysisSchema);

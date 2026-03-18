@@ -93,7 +93,7 @@ const generateRepoAnswer = async (question, repoContext) => {
   const client = getClient();
 
   if (!client) {
-    console.log('[chatService] No OPENAI_API_KEY — returning mock answer');
+    if (process.env.NODE_ENV !== 'production') console.log('[chatService] No OPENAI_API_KEY — returning mock answer');
     return { answer: generateMockAnswer(question, repoContext), _mock: true };
   }
 
@@ -115,7 +115,7 @@ const generateRepoAnswer = async (question, repoContext) => {
 
     return { answer: completion.choices[0]?.message?.content || 'No answer generated.' };
   } catch (apiError) {
-    console.error('[chatService] OpenAI error — falling back to mock:', apiError.message);
+    if (process.env.NODE_ENV !== 'production') console.error('[chatService] OpenAI error — falling back to mock:', apiError.message);
     return { answer: generateMockAnswer(question, repoContext), _mock: true };
   }
 };

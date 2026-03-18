@@ -1,27 +1,34 @@
 import React, { useState, useEffect } from 'react';
-import { GitBranch, Folder, Clock, Search, ExternalLink, Trash2, Loader, Inbox } from 'lucide-react';
+import { GitBranch, Folder, Clock, Search, ExternalLink, Trash2, Inbox, LayoutDashboard, Settings, Shield, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { getUserAnalyses, deleteAnalysis } from '../services/analysisService';
+import ErrorMessage from '../components/ErrorMessage';
+import LoadingSkeleton from '../components/LoadingSkeleton';
 
 const DashboardPage = () => {
   const { user } = useAuth();
   const [analyses, setAnalyses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState('analyses');
+
+  const loadAnalyses = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await getUserAnalyses();
+      setAnalyses(data);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to load analyses');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const data = await getUserAnalyses();
-        setAnalyses(data);
-      } catch (err) {
-        setError(err.response?.data?.message || 'Failed to load analyses');
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
+    loadAnalyses();
   }, []);
 
   const handleDelete = async (id) => {
@@ -33,7 +40,6 @@ const DashboardPage = () => {
     }
   };
 
-  /** Format relative time */
   const timeAgo = (dateStr) => {
     const diff = Date.now() - new Date(dateStr).getTime();
     const mins = Math.floor(diff / 60000);
@@ -47,131 +53,238 @@ const DashboardPage = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="flex justify-between items-center mb-10">
-        <div>
-          <h2 className="text-3xl font-bold text-white tracking-tight">Dashboard</h2>
-          <p className="text-slate-400 mt-1">
-            {user ? `Welcome back, ${user.name}` : 'Your recent repository analyses and statistics.'}
-          </p>
+    <div className="flex bg-[#0a0f1a] overflow-hidden min-h-[calc(100vh-64px)]">
+      
+      {/* Sidebar */}
+      <aside className="w-64 glass-panel border-r border-white/10 hidden md:flex flex-col py-8 px-4 relative z-10 shrink-0">
+        <div className="mb-8 px-2">
+          <h2 className="text-xl font-bold tracking-tight text-white mb-1">Dashboard</h2>
+          <p className="text-xs font-medium text-slate-400 truncate">{user?.email}</p>
         </div>
-        <Link
-          to="/analyzer"
-          className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-lg shadow-blue-500/20 flex items-center gap-2"
-        >
-          <Search size={16} /> New Analysis
-        </Link>
-      </div>
 
-      {/* Stats grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-        <div className="bg-slate-800 border border-slate-700 p-6 rounded-xl flex items-center gap-5">
-          <div className="p-4 bg-blue-500/10 text-blue-400 rounded-lg">
-            <Search size={28} />
-          </div>
-          <div>
-            <p className="text-slate-400 text-sm font-medium">Total Analyzed</p>
-            <p className="text-3xl font-bold text-white">{analyses.length}</p>
-          </div>
-        </div>
-        <div className="bg-slate-800 border border-slate-700 p-6 rounded-xl flex items-center gap-5">
-          <div className="p-4 bg-emerald-500/10 text-emerald-400 rounded-lg">
-            <Folder size={28} />
-          </div>
-          <div>
-            <p className="text-slate-400 text-sm font-medium">Unique Owners</p>
-            <p className="text-3xl font-bold text-white">
-              {new Set(analyses.map((a) => a.owner)).size}
-            </p>
-          </div>
-        </div>
-        <div className="bg-slate-800 border border-slate-700 p-6 rounded-xl flex items-center gap-5">
-          <div className="p-4 bg-purple-500/10 text-purple-400 rounded-lg">
-            <GitBranch size={28} />
-          </div>
-          <div>
-            <p className="text-slate-400 text-sm font-medium">Saved Explanations</p>
-            <p className="text-3xl font-bold text-white">{analyses.length}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Recent analyses */}
-      <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2 border-b border-slate-700 pb-2">
-        <Clock size={20} className="text-slate-400" /> Recent Analyses
-      </h3>
-
-      {loading && (
-        <div className="flex justify-center py-16">
-          <Loader className="h-8 w-8 text-blue-500 animate-spin" />
-        </div>
-      )}
-
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-5 py-4 rounded-xl text-sm mb-6">
-          {error}
-        </div>
-      )}
-
-      {!loading && analyses.length === 0 && (
-        <div className="bg-slate-800 border border-slate-700 rounded-xl p-12 text-center">
-          <Inbox size={48} className="text-slate-500 mx-auto mb-4" />
-          <h4 className="text-lg font-medium text-white mb-2">No repositories analyzed yet</h4>
-          <p className="text-slate-400 mb-6">
-            Start by analyzing a GitHub repository — we'll save your results here.
-          </p>
-          <Link
-            to="/analyzer"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition-all"
+        <nav className="flex-1 space-y-2">
+          <button 
+            onClick={() => setActiveTab('analyses')}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300 text-sm font-medium ${
+              activeTab === 'analyses' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.1)]' : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
+            }`}
           >
-            <Search size={16} /> Analyze a Repository
-          </Link>
-        </div>
-      )}
+            <Folder size={18} /> My Analyses 
+            {analyses.length > 0 && (
+              <span className={`ml-auto px-2 py-0.5 rounded-full text-[10px] ${activeTab === 'analyses' ? 'bg-indigo-500/20 text-indigo-300' : 'bg-white/10 text-slate-300'}`}>
+                {analyses.length}
+              </span>
+            )}
+          </button>
+          <button 
+            onClick={() => setActiveTab('settings')}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300 text-sm font-medium ${
+              activeTab === 'settings' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
+            }`}
+          >
+            <Settings size={18} /> Settings
+          </button>
+          <button 
+            onClick={() => setActiveTab('security')}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300 text-sm font-medium ${
+              activeTab === 'security' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
+            }`}
+          >
+            <Shield size={18} /> Security
+          </button>
+        </nav>
 
-      {!loading && analyses.length > 0 && (
-        <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
-          <div className="divide-y divide-slate-700">
-            {analyses.map((item) => (
-              <div
-                key={item._id}
-                className="p-5 flex items-center justify-between hover:bg-slate-700/50 transition-colors"
-              >
-                <div className="flex items-center gap-4 min-w-0">
-                  <div className="w-10 h-10 rounded-full bg-slate-900 border border-slate-700 flex items-center justify-center shrink-0">
-                    <GithubIcon className="h-5 w-5 text-slate-300" />
-                  </div>
-                  <div className="min-w-0">
-                    <h4 className="font-semibold text-white truncate">
-                      {item.owner}/{item.repoName}
-                    </h4>
-                    <p className="text-sm text-slate-400">Analyzed {timeAgo(item.updatedAt)}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className="px-3 py-1 bg-emerald-500/10 text-emerald-400 text-xs font-medium rounded-full hidden sm:inline-block">
-                    {item.techStack?.languages?.length || 0} languages
-                  </span>
-                  <Link
-                    to={`/analyzer?url=${encodeURIComponent(item.repoUrl)}`}
-                    className="text-slate-400 hover:text-blue-400 transition-colors p-2"
-                    title="View Analysis"
-                  >
-                    <ExternalLink size={18} />
-                  </Link>
-                  <button
-                    onClick={() => handleDelete(item._id)}
-                    className="text-slate-500 hover:text-red-400 transition-colors p-2"
-                    title="Delete Analysis"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+        {/* Mini Stats in Sidebar */}
+        <div className="mt-auto pt-6 border-t border-white/10">
+           <div className="bg-white/5 rounded-xl p-4 border border-white/5">
+             <p className="text-xs font-medium text-slate-400 mb-1">Total Monitored</p>
+             <p className="text-2xl font-bold text-white">{analyses.length}</p>
+             <div className="mt-3 flex items-center gap-2 text-xs text-emerald-400 font-medium">
+                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+                System Operational
+             </div>
+           </div>
         </div>
-      )}
+      </aside>
+
+      {/* Main Content Area */}
+      <main className="flex-1 overflow-y-auto relative h-[calc(100vh-64px)]">
+        {/* Background glow */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-3xl h-64 bg-indigo-500/10 rounded-full blur-[100px] pointer-events-none" />
+
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-10 py-8 relative z-10">
+          
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-10">
+            <div>
+              <h1 className="text-3xl font-bold text-white tracking-tight">
+                {activeTab === 'analyses' && 'Analysis History'}
+                {activeTab === 'settings' && 'Account Settings'}
+                {activeTab === 'security' && 'Security Overview'}
+              </h1>
+              <p className="text-sm font-medium text-slate-400 mt-1">
+                {activeTab === 'analyses' && 'Review and manage your previously analyzed repositories.'}
+                {activeTab !== 'analyses' && 'This feature is coming soon to CodeSage 2.0.'}
+              </p>
+            </div>
+            
+            {activeTab === 'analyses' && (
+              <Link
+                to="/analyzer"
+                className="glow-btn bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-[0_0_15px_rgba(79,70,229,0.3)] flex items-center gap-2"
+              >
+                <Search size={16} /> Analyze New Repo
+              </Link>
+            )}
+          </div>
+
+          <AnimatePresence mode="wait">
+            {activeTab === 'analyses' && (
+              <motion.div
+                key="analyses"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+              >
+                {/* Error State */}
+                {error && (
+                  <div className="mb-8">
+                    <ErrorMessage message={error} onRetry={loadAnalyses} />
+                  </div>
+                )}
+
+                {/* Loading State */}
+                {loading && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <LoadingSkeleton variant="list" count={4} />
+                    <LoadingSkeleton variant="list" count={4} className="hidden md:block" />
+                  </div>
+                )}
+
+                {/* Empty State */}
+                {!loading && analyses.length === 0 && !error && (
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="glass border border-white/10 rounded-3xl p-16 text-center max-w-2xl mx-auto mt-12 shadow-2xl relative overflow-hidden"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/5 to-transparent pointer-events-none" />
+                    
+                    <div className="w-20 h-20 bg-indigo-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-inner border border-indigo-500/30">
+                      <Inbox size={32} className="text-indigo-400" />
+                    </div>
+                    <h3 className="text-2xl font-bold text-white mb-3">No repositories analyzed yet</h3>
+                    <p className="text-slate-400 max-w-md mx-auto mb-8 leading-relaxed">
+                      Your analysis history is empty. Start by dropping a GitHub repository link into our analyzer engine.
+                    </p>
+                    <Link
+                      to="/analyzer"
+                      className="inline-flex items-center gap-2 px-6 py-3 bg-white text-slate-900 font-bold rounded-xl transition-all hover:bg-slate-200 shadow-[0_0_20px_rgba(255,255,255,0.2)]"
+                    >
+                      <Search size={18} /> Start Your First Analysis
+                    </Link>
+                  </motion.div>
+                )}
+
+                {/* Analysis Grid */}
+                {!loading && analyses.length > 0 && (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    {analyses.map((item, i) => (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.05 }}
+                        key={item._id}
+                        className="glass border border-white/10 rounded-2xl p-5 group hover:border-indigo-500/30 transition-all duration-300 relative overflow-hidden flex flex-col"
+                      >
+                        {/* Hover glow effect */}
+                        <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/0 via-indigo-500/5 to-cyan-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 pointer-events-none" />
+                        
+                        <div className="flex items-start justify-between mb-4 relative z-10">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0 group-hover:bg-indigo-500/20 group-hover:border-indigo-500/30 transition-colors">
+                              <GithubIcon className="h-5 w-5 text-indigo-300" />
+                            </div>
+                            <div className="min-w-0">
+                              <h4 className="font-bold text-white truncate text-lg group-hover:text-indigo-300 transition-colors">
+                                {item.repoName}
+                              </h4>
+                              <p className="text-xs font-medium text-slate-400 flex items-center gap-1.5 mt-0.5">
+                                <span className="truncate">{item.owner}</span>
+                                <span className="w-1 h-1 rounded-full bg-slate-600 shrink-0"></span>
+                                <span className="flex items-center gap-1 text-slate-500 shrink-0"><Clock size={12}/> {timeAgo(item.updatedAt)}</span>
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0 bg-slate-900/50 rounded-lg p-1 border border-white/5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => handleDelete(item._id)}
+                              className="text-slate-400 hover:text-red-400 hover:bg-white/5 transition-colors p-1.5 rounded-md"
+                              title="Delete Analysis"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                            <Link
+                              to={`/analyzer?url=${encodeURIComponent(item.repoUrl)}`}
+                              className="text-slate-400 hover:text-indigo-400 hover:bg-white/5 transition-colors p-1.5 rounded-md"
+                              title="View Analysis"
+                            >
+                              <ExternalLink size={16} />
+                            </Link>
+                          </div>
+                        </div>
+
+                        {/* Status/Tech Badges */}
+                        <div className="flex items-center justify-between mt-auto pt-4 border-t border-white/5 relative z-10">
+                          <div className="flex flex-wrap gap-2">
+                             {item.techStack?.languages?.slice(0, 3).map((lang, idx) => (
+                               <span key={idx} className="px-2.5 py-1 bg-white/5 border border-white/10 text-slate-300 text-[10px] font-bold uppercase tracking-wider rounded-md">
+                                 {lang}
+                               </span>
+                             ))}
+                             {item.techStack?.languages?.length > 3 && (
+                               <span className="px-2.5 py-1 bg-white/5 border border-white/10 text-slate-400 text-[10px] font-bold uppercase tracking-wider rounded-md">
+                                 +{item.techStack.languages.length - 3} more
+                               </span>
+                             )}
+                          </div>
+                          <Link 
+                            to={`/analyzer?url=${encodeURIComponent(item.repoUrl)}`}
+                            className="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-400 border border-indigo-500/20 group-hover:bg-indigo-500 hover:!text-white transition-all shadow-sm shrink-0"
+                          >
+                            <ChevronRight size={16} />
+                          </Link>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {activeTab !== 'analyses' && (
+              <motion.div
+                key="coming-soon"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+                className="glass border border-white/10 rounded-3xl p-16 text-center max-w-lg mx-auto mt-12"
+              >
+                <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-white/10">
+                  <LayoutDashboard size={24} className="text-slate-500" />
+                </div>
+                <h3 className="text-xl font-bold text-white mb-2">Coming Soon</h3>
+                <p className="text-sm text-slate-400">
+                  This section is currently under development for CodeSage 2.0. Check back later!
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+        </div>
+      </main>
     </div>
   );
 };
